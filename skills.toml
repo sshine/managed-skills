@@ -57,3 +57,17 @@ repo = "git@github.com:sshine/skills.git"
 path = "rust-best-practices"
 branch = "main"
 rev = "86ae4393913502b1ee1a913a25c5925df27c82e1"
+
+[skills.justfile-hygiene]
+source = "vendored"
+repo = "git@github.com:eisbaw/mped-skills.git"
+path = "skills/justfile-hygiene"
+branch = "main"
+rev = "7338808c30caf8a5459d05c40e9bfd999704b5c5"
+
+[skills.android-app-reverser]
+source = "vendored"
+repo = "git@github.com:eisbaw/mped-skills.git"
+path = "skills/android-app-reverser"
+branch = "main"
+rev = "7338808c30caf8a5459d05c40e9bfd999704b5c5"
