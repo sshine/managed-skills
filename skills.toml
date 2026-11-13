@@ -71,3 +71,6 @@ repo = "git@github.com:eisbaw/mped-skills.git"
 path = "skills/android-app-reverser"
 branch = "main"
 rev = "7338808c30caf8a5459d05c40e9bfd999704b5c5"
+
+[skills.dendritic-nix-flake]
+source = "authored"
