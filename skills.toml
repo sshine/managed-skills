@@ -1,0 +1,59 @@
+schema = 1
+
+[skills]
+
+[skills.agentic-playwright-nix]
+source = "vendored"
+repo = "git@github.com:sshine/skills.git"
+path = "agentic-playwright-nix"
+branch = "main"
+rev = "86ae4393913502b1ee1a913a25c5925df27c82e1"
+
+[skills.blog-post]
+source = "vendored"
+repo = "git@github.com:sshine/skills.git"
+path = "blog-post"
+branch = "main"
+rev = "86ae4393913502b1ee1a913a25c5925df27c82e1"
+
+[skills.cli-demo-generator]
+source = "vendored"
+repo = "git@github.com:sshine/skills.git"
+path = "cli-demo-generator"
+branch = "main"
+rev = "86ae4393913502b1ee1a913a25c5925df27c82e1"
+
+[skills.explainer]
+source = "vendored"
+repo = "git@github.com:sshine/skills.git"
+path = "explainer"
+branch = "main"
+rev = "86ae4393913502b1ee1a913a25c5925df27c82e1"
+
+[skills.feature-e2e-nix]
+source = "vendored"
+repo = "git@github.com:sshine/skills.git"
+path = "feature-e2e-nix"
+branch = "main"
+rev = "86ae4393913502b1ee1a913a25c5925df27c82e1"
+
+[skills.find-skills]
+source = "vendored"
+repo = "git@github.com:sshine/skills.git"
+path = "find-skills"
+branch = "main"
+rev = "86ae4393913502b1ee1a913a25c5925df27c82e1"
+
+[skills.kokoro-speak]
+source = "vendored"
+repo = "git@github.com:sshine/skills.git"
+path = "kokoro-speak"
+branch = "main"
+rev = "86ae4393913502b1ee1a913a25c5925df27c82e1"
+
+[skills.rust-best-practices]
+source = "vendored"
+repo = "git@github.com:sshine/skills.git"
+path = "rust-best-practices"
+branch = "main"
+rev = "86ae4393913502b1ee1a913a25c5925df27c82e1"

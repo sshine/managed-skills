@@ -1,0 +1,211 @@
+#!/usr/bin/env python3
+"""kokoro-speak -- read text aloud with Kokoro-82M, offline.
+
+The happy path is a pipe:
+
+    echo "Deployment finished." | kokoro-speak
+
+Text comes from the positional arguments when given, otherwise from stdin. The
+wrapped Nix package points KOKORO_MODEL_DIR and the espeak variables at store
+paths, so this script needs nothing from the user's environment.
+
+Defaults are Kokoro's own `af_heart` voice at speed 1.0. The NixOS and
+system-manager module can change those defaults, and every flag below wins over
+whatever the module baked in.
+"""
+
+import argparse
+import os
+import shlex
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+# Kokoro names a voice for the language it was trained on, and the first letter
+# is that language. Deriving the phonemizer's code from it means a Chinese
+# voice needs nothing but --voice; --lang overrides when espeak wants a
+# different variant (en-gb for a British voice, say).
+VOICE_LANG = {
+    "a": "en-us",
+    "b": "en-gb",
+    "e": "es",
+    "f": "fr-fr",
+    "h": "hi",
+    "i": "it",
+    "j": "ja",
+    "p": "pt-br",
+    "z": "cmn",
+}
+
+# Preferred first. The Nix wrapper puts pw-play, paplay, aplay and ffplay on
+# PATH; mpv is a courtesy for machines where the user already has it.
+PLAYERS = (
+    ["pw-play"],
+    ["paplay"],
+    ["aplay", "-q"],
+    ["ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet"],
+    ["mpv", "--no-video", "--really-quiet"],
+)
+
+
+def die(message: str) -> None:
+    print(f"kokoro-speak: {message}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+def language(voice: str, explicit: str | None) -> str:
+    if explicit:
+        return explicit
+    code = VOICE_LANG.get(voice[:1])
+    if not code:
+        die(f"cannot tell the language of voice {voice!r}; pass --lang")
+    return code
+
+
+def text_from(args: argparse.Namespace) -> str:
+    if args.text:
+        return " ".join(args.text)
+    if sys.stdin.isatty():
+        die("no text: pass words as arguments or pipe text on stdin")
+    return sys.stdin.read()
+
+
+def player_commands(explicit: str | None) -> list[list[str]]:
+    if explicit:
+        return [shlex.split(explicit)]
+    found = [list(candidate) for candidate in PLAYERS if shutil.which(candidate[0])]
+    if not found:
+        die("no audio player found; write a file with --out and play it yourself")
+    return found
+
+
+def play(path: Path, explicit: str | None) -> None:
+    failure = "no audio player found"
+    for command in player_commands(explicit):
+        try:
+            subprocess.run(command + [str(path)], check=True)
+            return
+        except FileNotFoundError:
+            failure = f"{command[0]} not found"
+        except subprocess.CalledProcessError as error:
+            # A player can be installed but have no server behind it (pw-play
+            # on a PulseAudio-only machine, for example), so keep trying the
+            # next one instead of giving up on the first failure.
+            failure = f"{' '.join(command)} exited with status {error.returncode}"
+    die(f"could not play the audio: {failure}")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog="kokoro-speak",
+        description="Read text aloud with Kokoro-82M (text from stdin or arguments).",
+        epilog="Examples: echo hello | kokoro-speak; kokoro-speak --out hi.wav --no-play 'Hi'",
+    )
+    parser.add_argument("text", nargs="*", help="text to speak (default: read stdin)")
+    parser.add_argument(
+        "--voice",
+        default=os.environ.get("KOKORO_VOICE", "af_heart"),
+        help="Kokoro voice (default: af_heart)",
+    )
+    parser.add_argument(
+        "--speed",
+        type=float,
+        default=float(os.environ.get("KOKORO_SPEED", "1.0")),
+        help="speaking rate, 0.5 to 2.0 (default: 1.0)",
+    )
+    parser.add_argument(
+        "--lang",
+        default=os.environ.get("KOKORO_LANG") or None,
+        help="espeak-ng language code (default: derived from --voice)",
+    )
+    parser.add_argument(
+        "--lead-silence",
+        type=float,
+        default=float(os.environ.get("KOKORO_LEAD_SILENCE", "0.0")),
+        help="seconds of silence before the first word (default: 0.0)",
+    )
+    parser.add_argument(
+        "--out",
+        type=Path,
+        help="write WAV here instead of playing (use - for stdout)",
+    )
+    parser.add_argument(
+        "--no-play",
+        action="store_true",
+        help="synthesize only; requires --out",
+    )
+    parser.add_argument(
+        "--player",
+        default=os.environ.get("KOKORO_PLAYER") or None,
+        help="player command (default: pw-play, paplay, aplay or ffplay)",
+    )
+    parser.add_argument(
+        "--list-voices",
+        action="store_true",
+        help="list the installed voices and exit",
+    )
+    args = parser.parse_args()
+
+    if args.out is None and args.no_play:
+        die("--no-play needs --out FILE")
+    if args.out is not None and args.out != Path("-"):
+        args.out = args.out.expanduser()
+
+    model_dir = Path(os.environ.get("KOKORO_MODEL_DIR", ""))
+    espeak_lib = os.environ.get("ESPEAK_LIBRARY", "")
+    espeak_data = os.environ.get("ESPEAK_DATA_PATH") or None
+    if not model_dir.is_dir() or not espeak_lib:
+        die("KOKORO_MODEL_DIR and ESPEAK_LIBRARY are not set; run the Nix package")
+
+    # Importing onnxruntime and loading the model is the slow part, so --help
+    # and argument errors stay instant.
+    import numpy
+    import soundfile
+    from kokoro_onnx import Kokoro
+    from kokoro_onnx.config import EspeakConfig
+
+    kokoro = Kokoro(
+        str(model_dir / "kokoro-v1.0.onnx"),
+        str(model_dir / "voices-v1.0.bin"),
+        espeak_config=EspeakConfig(lib_path=espeak_lib, data_path=espeak_data),
+    )
+
+    if args.list_voices:
+        print("\n".join(kokoro.get_voices()))
+        return
+
+    text = text_from(args).strip()
+    if not text:
+        die("nothing to say")
+    lang = language(args.voice, args.lang)
+
+    try:
+        samples, rate = kokoro.create(
+            text, voice=args.voice, speed=args.speed, lang=lang
+        )
+    except ValueError as error:
+        die(str(error))
+
+    if args.lead_silence > 0:
+        quiet = numpy.zeros(int(args.lead_silence * rate), dtype=samples.dtype)
+        samples = numpy.concatenate([quiet, samples])
+
+    if args.out == Path("-"):
+        soundfile.write(sys.stdout.buffer, samples, rate, format="WAV")
+        return
+
+    output = args.out
+    with tempfile.TemporaryDirectory(prefix="kokoro-speak-") as temporary:
+        if output is None:
+            output = Path(temporary) / "speech.wav"
+        else:
+            output.parent.mkdir(parents=True, exist_ok=True)
+        soundfile.write(output, samples, rate)
+        if not args.no_play:
+            play(output, args.player)
+
+
+if __name__ == "__main__":
+    main()

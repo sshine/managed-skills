@@ -1,0 +1,8 @@
+# Generated artifacts: narration, clips, contact sheets, peek screenshots and
+# the finished cut. Each video's script.json and scenes/ are the sources and
+# are deliberately not ignored.
+*/out/
+
+result
+result-*
+.direnv/

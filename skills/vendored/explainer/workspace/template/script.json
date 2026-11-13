@@ -1,0 +1,18 @@
+{
+  "meta": {
+    "title": "Explainer video template",
+    "fps": 30,
+    "resolution": [1920, 1080],
+    "canvas": [1920, 1080],
+    "theme": "light",
+    "voice": "af_heart"
+  },
+  "scenes": [
+    {
+      "id": "s1_intro",
+      "title": "Introduction",
+      "narration": "This is what the voice says in scene one. The scene page is rendered to exactly this long, so keep it tight — around two and a half words per second.",
+      "visual": "The storyboard for this scene: what enters, what animates, what the viewer should end up looking at."
+    }
+  ]
+}

@@ -1,0 +1,146 @@
+{
+  "af_alloy": {
+    "intercept": 1.2637,
+    "seconds_per_char": 0.050356
+  },
+  "af_aoede": {
+    "intercept": 1.0564,
+    "seconds_per_char": 0.056354
+  },
+  "af_bella": {
+    "intercept": 1.1201,
+    "seconds_per_char": 0.06008
+  },
+  "af_heart": {
+    "intercept": 0.7803,
+    "seconds_per_char": 0.060155
+  },
+  "af_jessica": {
+    "intercept": 0.6719,
+    "seconds_per_char": 0.050858
+  },
+  "af_kore": {
+    "intercept": 1.5829,
+    "seconds_per_char": 0.054342
+  },
+  "af_nicole": {
+    "intercept": 1.2659,
+    "seconds_per_char": 0.092837
+  },
+  "af_nova": {
+    "intercept": 1.2073,
+    "seconds_per_char": 0.050374
+  },
+  "af_river": {
+    "intercept": 1.0934,
+    "seconds_per_char": 0.048104
+  },
+  "af_sarah": {
+    "intercept": 0.7367,
+    "seconds_per_char": 0.058505
+  },
+  "af_sky": {
+    "intercept": 0.9366,
+    "seconds_per_char": 0.055276
+  },
+  "am_adam": {
+    "intercept": 0.7369,
+    "seconds_per_char": 0.056273
+  },
+  "am_echo": {
+    "intercept": 1.3364,
+    "seconds_per_char": 0.050271
+  },
+  "am_eric": {
+    "intercept": 0.8688,
+    "seconds_per_char": 0.047876
+  },
+  "am_fenrir": {
+    "intercept": 1.5075,
+    "seconds_per_char": 0.052661
+  },
+  "am_liam": {
+    "intercept": 0.8769,
+    "seconds_per_char": 0.050901
+  },
+  "am_michael": {
+    "intercept": 0.919,
+    "seconds_per_char": 0.064727
+  },
+  "am_onyx": {
+    "intercept": 1.2693,
+    "seconds_per_char": 0.051017
+  },
+  "am_puck": {
+    "intercept": 1.5087,
+    "seconds_per_char": 0.05198
+  },
+  "am_santa": {
+    "intercept": 1.2694,
+    "seconds_per_char": 0.058526
+  },
+  "bf_alice": {
+    "intercept": 0.9923,
+    "seconds_per_char": 0.055219
+  },
+  "bf_emma": {
+    "intercept": 0.7173,
+    "seconds_per_char": 0.055013
+  },
+  "bf_isabella": {
+    "intercept": 0.7454,
+    "seconds_per_char": 0.055313
+  },
+  "bf_lily": {
+    "intercept": 0.7567,
+    "seconds_per_char": 0.055541
+  },
+  "bm_daniel": {
+    "intercept": 0.9392,
+    "seconds_per_char": 0.050767
+  },
+  "bm_fable": {
+    "intercept": 1.3692,
+    "seconds_per_char": 0.050558
+  },
+  "bm_george": {
+    "intercept": 1.1298,
+    "seconds_per_char": 0.062104
+  },
+  "bm_lewis": {
+    "intercept": 0.9809,
+    "seconds_per_char": 0.061227
+  },
+  "zf_xiaobei": {
+    "intercept": 4.4156,
+    "seconds_per_char": 0.230537
+  },
+  "zf_xiaoni": {
+    "intercept": 2.4266,
+    "seconds_per_char": 0.191855
+  },
+  "zf_xiaoxiao": {
+    "intercept": 2.9754,
+    "seconds_per_char": 0.196542
+  },
+  "zf_xiaoyi": {
+    "intercept": 3.2869,
+    "seconds_per_char": 0.183544
+  },
+  "zm_yunjian": {
+    "intercept": 2.4535,
+    "seconds_per_char": 0.185626
+  },
+  "zm_yunxi": {
+    "intercept": 3.0181,
+    "seconds_per_char": 0.173233
+  },
+  "zm_yunxia": {
+    "intercept": 3.8749,
+    "seconds_per_char": 0.200996
+  },
+  "zm_yunyang": {
+    "intercept": 2.527,
+    "seconds_per_char": 0.175086
+  }
+}

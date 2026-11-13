@@ -1,0 +1,160 @@
+# explainer video workspace. Tools are vendored once by the flake here; each
+# video is a subdirectory holding its manuscript, its scene pages and its
+# artifacts. Every recipe takes that directory as its first argument.
+#
+#   just new mxroute-mcp
+#   just audio mxroute-mcp && just audition mxroute-mcp
+#   just peek mxroute-mcp s1_intro 0 4000 9000
+#   just build mxroute-mcp
+
+set shell := ["bash", "-uc"]
+
+root := justfile_directory()
+lib := root / "lib"
+
+# List the workspace commands.
+default:
+    @just --list --unsorted
+
+# Start a new video directory from the template.
+[group('setup')]
+new SLUG:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dir="{{root}}/{{SLUG}}"
+    [ -e "$dir" ] && { echo "{{SLUG}} already exists" >&2; exit 1; }
+    mkdir -p "$dir/scenes"
+    cp "{{root}}/template/script.json" "$dir/script.json"
+    echo "created {{SLUG}}/ — write its manuscript in {{SLUG}}/script.json"
+
+# Check the manuscript and that every scene has a page.
+[group('build')]
+check VIDEO:
+    {{lib}}/check.sh "{{root}}/{{VIDEO}}"
+
+# Predict how long the narration will run, before synthesizing any of it.
+[group('build')]
+estimate VIDEO:
+    python3 {{lib}}/pace.py estimate "{{root}}/{{VIDEO}}"
+
+# Hear what the voice will say, before writing a tts_text respelling.
+[group('build')]
+pronounce VIDEO *ARGS:
+    python3 {{lib}}/pronounce.py "{{root}}/{{VIDEO}}" {{ARGS}}
+
+# Synthesize narration. Unchanged scenes are left alone.
+[group('build')]
+audio VIDEO *SCENES:
+    python3 {{lib}}/tts.py --script "{{root}}/{{VIDEO}}/script.json" \
+      --out "{{root}}/{{VIDEO}}/out/audio" {{SCENES}}
+
+# Play the narration and read along, before committing to a render.
+[group('review')]
+audition VIDEO *SCENES:
+    {{lib}}/audition.sh "{{root}}/{{VIDEO}}" {{SCENES}}
+
+# Where in each measured clip the voice reaches each sentence. Fit beats to it.
+[group('build')]
+cue VIDEO *SCENES:
+    python3 {{lib}}/cue.py "{{root}}/{{VIDEO}}" {{SCENES}}
+
+# Screenshot one scene at the given instants, in milliseconds. The authoring loop.
+[group('build')]
+peek VIDEO SCENE *TIMES:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dir="{{root}}/{{VIDEO}}"
+    read -r w h cw ch theme < <(jq -er '[.meta.resolution[0] // 1920,
+      .meta.resolution[1] // 1080, .meta.canvas[0] // 1920,
+      .meta.canvas[1] // 1080, .meta.theme // "light"] | @tsv' "$dir/script.json")
+    css="$(jq -r '.meta.stylesheet // empty | "&css=../" + @uri' "$dir/script.json")"
+    mkdir -p "$dir/out/peek"
+    for t in {{TIMES}}; do
+      "$CHROMIUM_BIN" --headless=new --no-sandbox --disable-gpu --hide-scrollbars \
+        --window-size="$w,$h" --force-device-scale-factor=1 \
+        --screenshot="$dir/out/peek/{{SCENE}}-$t.png" \
+        "file://$dir/scenes/{{SCENE}}.html?t=$t&w=$w&h=$h&cw=$cw&ch=$ch&theme=$theme$css" 2>/dev/null
+      echo "$dir/out/peek/{{SCENE}}-$t.png"
+    done
+
+# Render scene pages to out/clips/. Scenes are rendered in parallel.
+[group('build')]
+render VIDEO *SCENES:
+    {{lib}}/render.sh "{{root}}/{{VIDEO}}" {{SCENES}}
+
+# Contact sheets of the rendered clips, six frames each.
+[group('review')]
+review VIDEO *SCENES:
+    {{lib}}/review.sh "{{root}}/{{VIDEO}}" {{SCENES}}
+
+# Mux the clips and the narration into out/<video>.mp4.
+[group('build')]
+assemble VIDEO:
+    {{lib}}/assemble.sh "{{root}}/{{VIDEO}}"
+
+# Narration, clips and the finished cut in one go.
+[group('build')]
+build VIDEO: (check VIDEO) (audio VIDEO) (render VIDEO) (assemble VIDEO)
+
+# Export as an explainer page played live in the browser; out/page/ by default.
+[group('build')]
+page VIDEO DEST="" *ARGS:
+    cd "{{invocation_directory()}}" && python3 {{lib}}/page.py "{{root}}/{{VIDEO}}" \
+      "{{ if DEST == "" { root / VIDEO / "out" / "page" } else { DEST } }}" {{ARGS}}
+
+# Serve an exported page on http://127.0.0.1:8123/ to try it in a browser.
+[group('review')]
+page-serve VIDEO:
+    python3 -m http.server 8123 --bind 127.0.0.1 -d "{{root}}/{{VIDEO}}/out/page"
+
+# Watch the finished cut.
+[group('review')]
+play VIDEO:
+    ffplay -autoexit "{{root}}/{{VIDEO}}/out/{{VIDEO}}.mp4"
+
+# Fit the speaking rates of one language family. Hours if given no argument.
+[group('setup')]
+pace *VOICES:
+    # Merges into the existing table, so re-fitting Mandarin leaves English be.
+    #   just pace z          every Mandarin voice
+    #   just pace af_heart   one voice
+    python3 {{lib}}/pace.py measure {{VOICES}}
+
+# Every voice in the pinned Kokoro archive.
+[group('setup')]
+voices:
+    @python3 -c 'import numpy; print(*sorted(numpy.load("'"$KOKORO_MODEL_DIR"'/voices-v1.0.bin").files), sep="\n")'
+
+# Show what this workspace's tooling has that the skill it came from lacks.
+[group('setup')]
+skill-diff SKILL="~/.agents/skills/explainer":
+    #!/usr/bin/env bash
+    set -uo pipefail
+    src="$(eval echo {{SKILL}})/workspace"
+    [ -d "$src" ] || { echo "no skill workspace at $src" >&2; exit 1; }
+    drift=0
+    for path in flake.nix flake.lock Justfile .gitignore nix lib template; do
+      if ! diff -ru "$src/$path" "{{root}}/$path"; then drift=1; fi
+    done
+    if [ "$drift" = 0 ]; then
+      echo "no drift: the skill matches this workspace"
+    else
+      echo >&2
+      echo "the skill is stale; push these back with:" >&2
+      echo "  $(eval echo {{SKILL}})/setup.sh {{root}}  # pulls skill -> workspace" >&2
+      echo "  just skill-push                           # pushes workspace -> skill" >&2
+    fi
+    exit "$drift"
+
+# Copy this workspace's tooling back into the skill, so the next machine gets it.
+[group('setup')]
+skill-push SKILL="~/.agents/skills/explainer":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dest="$(eval echo {{SKILL}})/workspace"
+    [ -d "$dest" ] || { echo "no skill workspace at $dest" >&2; exit 1; }
+    for path in flake.nix flake.lock Justfile .gitignore nix lib template; do
+      rm -rf "${dest:?}/$path"
+      cp -r "{{root}}/$path" "$dest/$path"
+    done
+    echo "pushed workspace tooling into $dest"
