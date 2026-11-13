@@ -44,13 +44,6 @@ path = "find-skills"
 branch = "main"
 rev = "86ae4393913502b1ee1a913a25c5925df27c82e1"
 
-[skills.kokoro-speak]
-source = "vendored"
-repo = "git@github.com:sshine/skills.git"
-path = "kokoro-speak"
-branch = "main"
-rev = "86ae4393913502b1ee1a913a25c5925df27c82e1"
-
 [skills.rust-best-practices]
 source = "vendored"
 repo = "git@github.com:sshine/skills.git"
@@ -73,4 +66,7 @@ branch = "main"
 rev = "7338808c30caf8a5459d05c40e9bfd999704b5c5"
 
 [skills.dendritic-nix-flake]
+source = "authored"
+
+[skills.kokoro-speak]
 source = "authored"
