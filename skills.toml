@@ -73,3 +73,20 @@ source = "authored"
 
 [skills.skill-refinement]
 source = "authored"
+
+[skills.skill-creator]
+source = "vendored"
+repo = "anthropics/skills"
+path = "skills/skill-creator"
+branch = "main"
+rev = "1780c5e5a552fd4d1c9d6a7b0cab26b0c2bef064"
+
+[skills.nix-manage-dotfiles-softly]
+source = "authored"
+
+[skills.manage-skills]
+source = "vendored"
+repo = "sshine/skillmgr"
+path = "skills/manage-skills"
+branch = "main"
+rev = "874d71aa5ffe2ae938919e5984c50a567d7e46f5"
