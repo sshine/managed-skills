@@ -15,6 +15,10 @@
 {
   pkgs,
   cudaSupport ? false,
+  # A prebuilt Python `onnxruntime` package with CUDA. When set, the expensive
+  # ONNX Runtime compile is skipped; the package must be importable as
+  # `onnxruntime` and built for this Python minor version.
+  cudaOnnxRuntime ? null,
   # Consumer GPUs, not data-centre parts. Building for every architecture in
   # nixpkgs' default costs a lot of nvcc time; override this if you need
   # another one (for example "89" for Ada or "120" for Blackwell).
@@ -44,7 +48,7 @@ let
     };
   };
 
-  cudaOnnxRuntime = pkgs.onnxruntime.override {
+  cudaOnnxRuntimeBuilt = pkgs.onnxruntime.override {
     inherit cudaPackages;
     cudaSupport = true;
     ncclSupport = false;
@@ -55,10 +59,15 @@ let
   # The Python bindings are a separate derivation that takes the non-Python
   # onnxruntime's wheel as its source. Swapping that argument is how the CUDA
   # build reaches `import onnxruntime` without rebuilding the whole package
-  # set with config.cudaSupport.
-  mkOnnxRuntime =
-    cuda:
-    if cuda then pyPkgs.onnxruntime.override { onnxruntime = cudaOnnxRuntime; } else pyPkgs.onnxruntime;
+  # set with config.cudaSupport. An externally supplied package, such as one
+  # built from a prebuilt wheel, replaces the whole compile.
+  cudaOnnxRuntimePackage =
+    if cudaOnnxRuntime != null then
+      cudaOnnxRuntime
+    else
+      pyPkgs.onnxruntime.override { onnxruntime = cudaOnnxRuntimeBuilt; };
+
+  mkOnnxRuntime = cuda: if cuda then cudaOnnxRuntimePackage else pyPkgs.onnxruntime;
 
   espeakng-loader = pyPkgs.buildPythonPackage {
     pname = "espeakng_loader";
@@ -105,6 +114,10 @@ let
         pyPkgs.numpy
         (mkOnnxRuntime cuda)
       ];
+      # The prebuilt ONNX Runtime wheel is distributed as `onnxruntime-gpu`,
+      # while kokoro-onnx declares a dependency on `onnxruntime`. The module
+      # is present either way; only the metadata name differs.
+      dontCheckRuntimeDeps = true;
       doCheck = false;
     };
 
@@ -146,8 +159,22 @@ let
       if cuda then
         ''
           # ONNX Runtime dlopens libcuda; on NixOS it lives with the driver
-          # rather than in the CUDA runtime closure.
-          export LD_LIBRARY_PATH="/run/opengl-driver/lib''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          # rather than in the CUDA runtime closure. The prebuilt wheel also
+          # dlopens libcudnn by its unversioned name, which is not on the
+          # default loader path.
+          export LD_LIBRARY_PATH="${
+            pkgs.lib.makeLibraryPath (
+              with cudaPackages;
+              [
+                cudnn
+                libcublas
+                libcurand
+                libcufft
+                cuda_cudart
+                cuda_nvrtc
+              ]
+            )
+          }:/run/opengl-driver/lib''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
           # kokoro-onnx sees the plain `onnxruntime` distribution name, not
           # `onnxruntime-gpu`, so it would choose CPU by itself.
           export ONNX_PROVIDER="CUDAExecutionProvider"

@@ -189,7 +189,8 @@ nixpkgs.config.allowUnfree = true;
 The first build compiles ONNX Runtime against CUDA, which is much slower than
 the CPU build. On a 16-thread i7-11700 with `cudaArchitectures = "86"` it took
 about 46 minutes; the default five-architecture list is longer. Later builds
-are cached. To build the package without a NixOS configuration:
+are cached. To skip the compile entirely, use a prebuilt `cudaOnnxRuntime`
+package (below). To build the package without a NixOS configuration:
 
 ```bash
 nix build .#kokoro-speak-cuda
@@ -202,6 +203,22 @@ can find the driver's `libcuda.so`, and names `CUDAExecutionProvider` in
 for distributions named `onnxruntime-gpu` (nixpkgs' is plain `onnxruntime`).
 `--device cpu` is the escape hatch when the driver is broken or the sentence is
 so short that CUDA setup costs more than it saves.
+
+### Skipping the ONNX Runtime compile
+
+If you already have a prebuilt Python `onnxruntime` package with CUDA, pass it
+as `programs.kokoro-tts.cudaOnnxRuntime` and the package default uses it
+instead of compiling ONNX Runtime:
+
+```nix
+programs.kokoro-tts.cudaOnnxRuntime =
+  inputs.kokoro-cuda-onnx-runtime.packages.${pkgs.stdenv.hostPlatform.system}.default;
+```
+
+The package must be importable as `onnxruntime` and built for the same Python
+minor version as the skill's `pkgs.python3` (currently 3.14). The wrapper adds
+the nixpkgs CUDA, cuDNN and cuBLAS directories to `LD_LIBRARY_PATH` so a wheel
+that `dlopen`s `libcudnn.so` works.
 
 Measured on the machine in `BENCHMARK.md`: warm synthesis is 5.1x faster at 5
 words, 7.3-8.7x at 20-100 words, and 10.1x at 300-1000 words, reaching about
