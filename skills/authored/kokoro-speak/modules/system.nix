@@ -1,16 +1,28 @@
 # The system module, shared by NixOS and numtide/system-manager.
 #
-# The flake-parts module in ../modules/flake-parts.nix supplies `package` and
-# changes the defaults from flake settings. A host can override any option here
-# directly, which is what makes the same wrapper useful on a desktop and on a
-# minimal system-manager profile.
-{ config, lib, pkgs, ... }:
+# The flake-parts module in ../modules/flake-parts.nix supplies the flake-wide
+# defaults. `package` is derived from the per-system cudaSupport and
+# cudaArchitectures options, so a host can override either one. A host can also
+# override any option here directly, which is what makes the same wrapper
+# useful on a desktop and on a minimal system-manager profile.
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
   cfg = config.programs.kokoro-tts;
 
   extraArgs =
-    lib.optionals (cfg.lang != null) [ "--lang" cfg.lang ]
-    ++ lib.optionals (cfg.player != null) [ "--player" cfg.player ];
+    lib.optionals (cfg.lang != null) [
+      "--lang"
+      cfg.lang
+    ]
+    ++ lib.optionals (cfg.player != null) [
+      "--player"
+      cfg.player
+    ];
 
   kokoro-speak = pkgs.writeShellScriptBin "kokoro-speak" ''
     exec ${cfg.package}/bin/kokoro-speak \
@@ -27,7 +39,40 @@ in
 
     package = lib.mkOption {
       type = lib.types.package;
+      default =
+        (import ../nix/package.nix {
+          inherit pkgs;
+          cudaSupport = cfg.cudaSupport;
+          cudaArchitectures = cfg.cudaArchitectures;
+        }).kokoro-speak;
+      defaultText = lib.literalExpression ''
+        (import ../nix/package.nix {
+          inherit pkgs;
+          cudaSupport = config.programs.kokoro-tts.cudaSupport;
+          cudaArchitectures = config.programs.kokoro-tts.cudaArchitectures;
+        }).kokoro-speak
+      '';
       description = "Package providing the kokoro-speak executable.";
+    };
+
+    cudaSupport = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Build ONNX Runtime with the CUDA execution provider. The package is
+        built here rather than requiring `nixpkgs.config.cudaSupport`; the
+        first build compiles ONNX Runtime and takes a while.
+      '';
+    };
+
+    cudaArchitectures = lib.mkOption {
+      type = lib.types.str;
+      default = "75;80;86;89;120";
+      description = ''
+        Semicolon-separated CUDA compute capabilities to compile for, or an
+        empty string to use nixpkgs' full default list. Only used when
+        `cudaSupport` is true and `package` is left at its default.
+      '';
     };
 
     voice = lib.mkOption {

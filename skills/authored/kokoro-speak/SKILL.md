@@ -5,9 +5,11 @@ description: >-
   numtide/system-manager machine. The skill vendors the model, the Python
   wheels nixpkgs lacks, an espeak-ng and audio-player wrapper, and a
   flake-parts module whose settings become NixOS/system-manager options, so
-  text piped on stdin is spoken locally with no cloud and no API key. Use when
-  asked to make a computer talk, add local TTS, install Kokoro, read text or an
-  agent's final response aloud, or package a speech command for a Nix system.
+  text piped on stdin is spoken locally with no cloud and no API key. The
+  package can be built with the CUDA execution provider for an NVIDIA GPU.
+  Use when asked to make a computer talk, add local TTS, install Kokoro, read
+  text or an agent's final response aloud, or package a speech command for a
+  Nix system.
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep
 user-invocable: true
 ---
@@ -34,6 +36,10 @@ Everything is vendored in this skill directory:
   modules/system.nix        programs.kokoro-tts (NixOS and system-manager)
   nix/package.nix           model, Python env, kokoro-speak wrapper
   bin/kokoro-speak          the pipe-friendly CLI
+  bench/bench.py            warm synthesis timings at several text lengths
+  bench/cold.py             fresh-process latency, model load included
+  bench/compare.py          two bench JSON files -> a Markdown table
+  BENCHMARK.md              measured CPU and CUDA results, methodology
 ```
 
 ## 1. Add the flake input
@@ -107,6 +113,8 @@ per-system module and can override any of them:
 | Option | Default | Meaning |
 |---|---|---|
 | `enable` | `true` | Install `kokoro-speak` on this system. |
+| `cudaSupport` | `false` | Build ONNX Runtime with the CUDA execution provider. |
+| `cudaArchitectures` | `"75;80;86;89;120"` | Compute capabilities to compile for; empty uses nixpkgs' full list. |
 | `voice` | `"af_heart"` | Kokoro voice. Its first letter also picks the language. |
 | `speed` | `1.0` | Speaking rate, 0.5 to 2.0. |
 | `lang` | `null` | espeak-ng code; derived from the voice when null. |
@@ -137,14 +145,71 @@ kokoro-speak --out reply.wav --no-play "Saved instead of played."
 # Write a WAV to stdout, for another program.
 kokoro-speak --out - "Piped as WAV." > reply.wav
 
+# Force one invocation through the CPU even on a CUDA build.
+kokoro-speak --device cpu "Short sentence, no GPU setup cost."
+
+# See what the installed onnxruntime can use.
+kokoro-speak --list-providers
+
 kokoro-speak --list-voices
 ```
 
-Flags win over the module defaults. `--voice`, `--speed`, `--lang`,
-`--lead-silence`, `--player`, `--out`, `--no-play` and `--list-voices` are the
-whole surface. Text comes from the arguments when given, otherwise from stdin.
+Flags win over the module defaults. `--voice`, `--speed`, `--lang`, `--device`,
+`--lead-silence`, `--player`, `--out`, `--no-play`, `--list-providers` and
+`--list-voices` are the whole surface. Text comes from the arguments when
+given, otherwise from stdin.
 
-## 5. Verify the install
+## 5. NVIDIA GPU (optional)
+
+The model is 82M parameters, so a GPU is not required, but CUDA execution makes
+long text and batches noticeably faster. Enable it per system:
+
+```nix
+programs.kokoro-tts = {
+  cudaSupport = true;
+  # Optional: drop architectures you do not own to cut nvcc time.
+  # 7.5 is RTX 20xx, 8.6 is RTX 30xx, 8.9 is RTX 40xx, 12.0 is RTX 50xx.
+  cudaArchitectures = "75;86";
+};
+```
+
+Or flake-wide, for every system that imports `flake.nixosModules.kokoro`:
+
+```nix
+flake.kokoro-tts.cudaSupport = true;
+```
+
+The consumer's nixpkgs must allow unfree packages because the CUDA EULA covers
+the runtime and cuDNN:
+
+```nix
+nixpkgs.config.allowUnfree = true;
+```
+
+The first build compiles ONNX Runtime against CUDA, which is much slower than
+the CPU build. On a 16-thread i7-11700 with `cudaArchitectures = "86"` it took
+about 46 minutes; the default five-architecture list is longer. Later builds
+are cached. To build the package without a NixOS configuration:
+
+```bash
+nix build .#kokoro-speak-cuda
+./result/bin/kokoro-speak --list-providers   # CUDAExecutionProvider must appear
+```
+
+The wrapper puts `/run/opengl-driver/lib` on `LD_LIBRARY_PATH` so ONNX Runtime
+can find the driver's `libcuda.so`, and names `CUDAExecutionProvider` in
+`ONNX_PROVIDER` because kokoro-onnx only auto-selects an accelerated provider
+for distributions named `onnxruntime-gpu` (nixpkgs' is plain `onnxruntime`).
+`--device cpu` is the escape hatch when the driver is broken or the sentence is
+so short that CUDA setup costs more than it saves.
+
+Measured on the machine in `BENCHMARK.md`: warm synthesis is 5.1x faster at 5
+words, 7.3-8.7x at 20-100 words, and 10.1x at 300-1000 words, reaching about
+32x realtime. A fresh one-sentence command is about parity with the CPU because
+the CUDA session setup costs 1.5-2.4 s; a paragraph cold run is already 2.8x
+faster.
+
+## 6. Verify the install
 
 Do not stop at "the command exists". Synthesize a short file and check it is a
 real 24 kHz WAV before asking the user to listen:
@@ -154,17 +219,40 @@ printf 'Kokoro is installed. This is the default voice.' |
   kokoro-speak --out /tmp/kokoro-check.wav --no-play
 ffprobe -v error -show_entries stream=sample_rate,channels,duration \
   -of default=nw=1 /tmp/kokoro-check.wav
+kokoro-speak --list-providers
 pw-play /tmp/kokoro-check.wav   # or paplay / aplay / ffplay
 ```
 
-The first invocation loads the 326 MB ONNX model and takes several seconds.
-Later invocations in a fresh process load it again; this is a CLI, not a
-daemon. That is deliberate for the first version.
+On a CUDA build, `--list-providers` must print `CUDAExecutionProvider`; if it
+does not, the wrapper and the onnxruntime that the Python environment imported
+disagree. The first invocation loads the 326 MB ONNX model and takes several
+seconds. Later invocations in a fresh process load it again; this is a CLI, not
+a daemon. That is deliberate for the first version. For GPU setup cost see
+`BENCHMARK.md`; the short version is that CUDA wins on paragraphs, not on one
+short sentence.
+
+To reproduce the benchmark:
+
+```bash
+nix run .#kokoro-bench-cpu  -- --label cpu  --json-out /tmp/cpu.json
+nix run .#kokoro-bench-cuda -- --label cuda --json-out /tmp/cuda.json
+nix shell nixpkgs#python3 -c python3 bench/compare.py /tmp/cpu.json /tmp/cuda.json
+```
 
 ## Gotchas
 
 - **The wheel is x86_64-linux only.** `espeakng-loader` ships a manylinux
-  x86_64 wheel. The flake's `systems` list says so.
+  x86_64 wheel. The flake's `systems` list says so. This skill therefore runs
+  on Intel/AMD Linux, not on an Apple Silicon Mac; an M-series port needs a
+  different espeak library package and a CoreML/Metal execution provider.
+- **CUDA is a build-time choice.** `cudaSupport = true` builds a CUDA onnxruntime
+  and bakes `CUDAExecutionProvider` into the wrapper. There is no fallback to
+  the CPU build at runtime if the driver disappears; use `--device cpu` or
+  install the CPU package instead.
+- **A short sentence can be slower on the GPU.** Every CLI invocation creates a
+  new ONNX Runtime session, and CUDA setup is a fixed cost. For one or two
+  words, `--device cpu` is often the lower-latency choice; for paragraphs and
+  reports, CUDA is several times faster. See `BENCHMARK.md`.
 - **The voice selects the language.** `af_heart` is American English because
   of the leading `a`; `bf_emma` is British, `zm_yunyang` is Mandarin. Pass
   `--lang` only when espeak wants a variant other than that mapping.

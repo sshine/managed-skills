@@ -16,6 +16,18 @@
       # Kokoro's espeakng-loader ships an x86_64 Linux wheel only.
       systems = [ "x86_64-linux" ];
 
+      # This flake builds its own outputs with CUDA option available. A
+      # consumer flake uses its own pkgs; if it wants cudaSupport it must set
+      # nixpkgs.config.allowUnfree (the CUDA EULA).
+      perSystem =
+        { system, ... }:
+        {
+          _module.args.pkgs = import inputs.nixpkgs {
+            inherit system;
+            config.allowUnfree = true;
+          };
+        };
+
       # Consume this as `inputs.kokoro-speak.flakeModules.default` in another
       # flake-parts flake, then add `config.flake.nixosModules.kokoro` to the
       # system that should speak.
@@ -24,17 +36,14 @@
       # For a consumer that does not use flake-parts. The package is built with
       # the consumer's own pkgs, so this does not pull in a second nixpkgs.
       flake.nixosModules.default =
-        {
-          pkgs,
-          lib,
-          ...
-        }:
+        { lib, ... }:
         {
           imports = [ ./modules/system.nix ];
 
           programs.kokoro-tts = {
             enable = lib.mkDefault true;
-            package = lib.mkDefault (import ./nix/package.nix { inherit pkgs; }).kokoro-speak;
+            # Leave `package` at the system module's default: it follows
+            # programs.kokoro-tts.cudaSupport, which a host can set.
           };
         };
     };

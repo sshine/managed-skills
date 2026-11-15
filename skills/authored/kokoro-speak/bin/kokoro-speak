@@ -12,6 +12,11 @@ paths, so this script needs nothing from the user's environment.
 Defaults are Kokoro's own `af_heart` voice at speed 1.0. The NixOS and
 system-manager module can change those defaults, and every flag below wins over
 whatever the module baked in.
+
+A CUDA build exports ONNX_PROVIDER=CUDAExecutionProvider in its wrapper.
+`--device cpu` sends a single invocation back to the CPU; `--device cuda`
+forces the GPU provider on a CUDA-capable build. `--list-providers` shows what
+the installed onnxruntime can actually use.
 """
 
 import argparse
@@ -121,6 +126,12 @@ def main() -> None:
         help="espeak-ng language code (default: derived from --voice)",
     )
     parser.add_argument(
+        "--device",
+        choices=("auto", "cpu", "cuda"),
+        default=os.environ.get("KOKORO_DEVICE", "auto"),
+        help="execution provider (default: auto; a CUDA build defaults to cuda)",
+    )
+    parser.add_argument(
         "--lead-silence",
         type=float,
         default=float(os.environ.get("KOKORO_LEAD_SILENCE", "0.0")),
@@ -146,6 +157,11 @@ def main() -> None:
         action="store_true",
         help="list the installed voices and exit",
     )
+    parser.add_argument(
+        "--list-providers",
+        action="store_true",
+        help="list the available ONNX Runtime execution providers and exit",
+    )
     args = parser.parse_args()
 
     if args.out is None and args.no_play:
@@ -162,9 +178,21 @@ def main() -> None:
     # Importing onnxruntime and loading the model is the slow part, so --help
     # and argument errors stay instant.
     import numpy
+    import onnxruntime
     import soundfile
     from kokoro_onnx import Kokoro
     from kokoro_onnx.config import EspeakConfig
+
+    if args.list_providers:
+        print("\n".join(onnxruntime.get_available_providers()))
+        return
+
+    # kokoro-onnx reads ONNX_PROVIDER when it builds the session. The Nix CUDA
+    # wrapper already exports CUDAExecutionProvider; --device overrides it.
+    if args.device == "cpu":
+        os.environ["ONNX_PROVIDER"] = "CPUExecutionProvider"
+    elif args.device == "cuda":
+        os.environ["ONNX_PROVIDER"] = "CUDAExecutionProvider"
 
     kokoro = Kokoro(
         str(model_dir / "kokoro-v1.0.onnx"),

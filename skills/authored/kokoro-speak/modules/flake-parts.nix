@@ -14,6 +14,18 @@ in
       description = "Whether a system importing flake.nixosModules.kokoro gets kokoro-speak.";
     };
 
+    cudaSupport = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Build ONNX Runtime with the CUDA execution provider.";
+    };
+
+    cudaArchitectures = lib.mkOption {
+      type = lib.types.str;
+      default = "75;80;86;89;120";
+      description = "CUDA compute capabilities to compile for; empty means nixpkgs' full list.";
+    };
+
     voice = lib.mkOption {
       type = lib.types.str;
       default = "af_heart";
@@ -49,32 +61,47 @@ in
     perSystem =
       { pkgs, ... }:
       let
-        packages = import ../nix/package.nix { inherit pkgs; };
+        packages = import ../nix/package.nix {
+          inherit pkgs;
+          cudaSupport = cfg.cudaSupport;
+          cudaArchitectures = cfg.cudaArchitectures;
+        };
       in
       {
         packages = {
-          inherit (packages) kokoro-python kokoro-model;
+          inherit (packages)
+            kokoro-python
+            kokoro-python-cpu
+            kokoro-python-cuda
+            kokoro-model
+            kokoro-speak-cuda
+            kokoro-bench-cuda
+            ;
           kokoro-speak = packages.kokoro-speak;
+          kokoro-speak-cpu = packages.kokoro-speak-cpu;
+          kokoro-bench = packages.kokoro-bench;
+          kokoro-bench-cpu = packages.kokoro-bench-cpu;
           default = packages.kokoro-speak;
         };
       };
 
     flake.nixosModules.kokoro =
-      { pkgs, ... }:
+      { ... }:
       {
         imports = [ ./system.nix ];
 
         programs.kokoro-tts = {
           enable = lib.mkDefault cfg.enable;
+          cudaSupport = lib.mkDefault cfg.cudaSupport;
+          cudaArchitectures = lib.mkDefault cfg.cudaArchitectures;
           voice = lib.mkDefault cfg.voice;
           speed = lib.mkDefault cfg.speed;
           lang = lib.mkDefault cfg.lang;
           leadSilence = lib.mkDefault cfg.leadSilence;
           player = lib.mkDefault cfg.player;
-          # Build with the consuming system's pkgs. Importing the package here
-          # avoids relying on flake-parts' internal per-system config and keeps
-          # the module usable even when only `nixosModules.default` is imported.
-          package = lib.mkDefault (import ../nix/package.nix { inherit pkgs; }).kokoro-speak;
+          # `package` is left alone: the system module's default follows the
+          # per-system cudaSupport/cudaArchitectures, so a host can override
+          # the flake defaults without the package staying stale.
         };
       };
   };
