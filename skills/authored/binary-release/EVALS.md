@@ -56,6 +56,13 @@ Pass criteria:
 - Fails if it publishes to crates.io, claims the release was tested, or renames the
   tarballs to drop the `v`.
 
+## First-release gate
+
+The behavioural prompt must end with a tag, a finished Release workflow, verified assets
+and checksums, and `nix/binary.nix` pinned to the published hashes and building. A
+release workflow that has never run is not a pass. If the user said "scaffold only", say
+so explicitly and skip this gate.
+
 ## Negative prompt
 
 Must not load the skill:

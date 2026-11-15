@@ -5,9 +5,9 @@ description: >-
   .envrc, CI and hashpinned workflows. Use when the request is to
   create/scaffold/bootstrap a new project/repository/CLI, from scratch, a new Rust project,
   set up a repo like hashpinner or skillmgr, or set up CI and releases for a brand-new
-  repository. It unfolds into workspace, hooks, release and Playwright/browser-test work
-  as each becomes relevant. Not for adding features, CI steps or release targets to an
-  existing repository.
+  repository. It unfolds into workspace, hooks, release (including the first tag and
+  published assets) and Playwright/browser-test work as each becomes relevant. Not for
+  adding features, CI steps or release targets to an existing repository.
 allowed-tools: Bash, Read, Write, Edit, Grep, Glob
 ---
 
@@ -30,7 +30,7 @@ containing this file; shell commands run in the new project or its parent.
 | 2 | **Scaffold the Cargo workspace and its dendritic Nix flake.** | `Cargo.toml`, `crates/*`, `rust-toolchain.toml`, `justfile`, `README.tpl`, `flake.nix`, `nix/` |
 | 3 | **Wire the repository's git hooks.** | `nix/hooks.nix`, hook activation in the devshell |
 | 4 | **Set up CI and hashpinning.** | composite actions, CI workflows, hashpinner |
-| 5 | **Set up the tag-driven binary release.** | release recipes, release workflow, `nix/binary.nix` |
+| 5 | **Set up and cut the tag-driven binary release end to end.** | release recipes, release workflow, `nix/binary.nix`, tag, published assets, pinned hashes |
 | 6 | **If the project serves a web UI, wire Agentic Playwright and its browser test harness.** | Playwright, browsers, screenshots, e2e CI |
 | 7 | **Verify the whole thing.** | a report of what passed and what is left |
 
@@ -218,9 +218,9 @@ nix develop -c hashpinner --check --deep --no-allow
 Both must pass with only pinned references reported. On a new repository `--deep` fetches
 the action repositories; network is required.
 
-## 7. Set up the tag-driven binary release.
+## 7. Set up and cut the tag-driven binary release end to end.
 
-**Say: "Set up the tag-driven binary release."**
+**Say: "Set up and cut the tag-driven binary release end to end."**
 
 Outcome: `check-version`, `dist` and `tag` recipes; a `v*`-triggered release workflow that
 reuses the checks above; static musl tarballs with `.sha256` sidecars; an optional
@@ -229,6 +229,8 @@ crates.io publish; and `nix/binary.nix` for consumers without Rust.
 Hand over whether the crate name is free, whether publishing is enabled, macOS aarch64,
 draft or immediate, and the registry-token secret. Do not write a release workflow here,
 and do not extend the CI composites with publishing.
+
+**Scaffolding is not a release.** Unless the user says "scaffold only", cut it end to end after main CI is green: tag, watch the release, verify assets, pin hashes, push.
 
 ## 8. If the project serves a web UI, wire Agentic Playwright.
 
@@ -252,7 +254,6 @@ nix flake check
 nix develop -c just ci
 nix develop -c just pin-check
 nix develop -c cargo run -- --help
-git status --short
 ```
 
 For a library with no binary, run `nix develop -c cargo test --doc` instead of `cargo run`.
@@ -261,7 +262,7 @@ Then report:
 
 - What passed, by command; what was syntax-checked but not built (YAML, Nix parsing,
   shell syntax).
-- What is intentionally absent: the release workflow if phase 5 was skipped, the browser
+- What is intentionally absent: the release if phase 5 was skipped, the browser
   harness if there is no web UI.
 - What only the integration run can prove: the flake evaluates on a clean machine, CI is
   green on the forge, a tag produces the artifacts.
@@ -293,7 +294,6 @@ step, in which case say so and ask. If an edit needs a rewrite to be safe, stop 
 ## Hard rules
 
 - Every `uses:` in this skill's output is a commit SHA with a version/date comment.
-- No release workflow, release recipe or publish step in this phase.
 - No workspace lints, treefmt configuration, hook details or release recipes in this
   skill's body. Name the phase outcome and let the matching procedure own the details.
 - No claiming a build or a release works from a syntax check.

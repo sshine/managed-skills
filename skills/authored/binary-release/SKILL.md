@@ -1,14 +1,15 @@
 ---
 name: binary-release
 description: >-
-  Set up the tag-driven binary release for a Rust CLI or workspace: static musl tarballs
-  for x86_64-linux and aarch64-linux, checksums, optional macOS aarch64, and a GitHub or
-  Forgejo release workflow. Use when asked to release binaries,
+  Set up and cut the tag-driven binary release for a Rust CLI or workspace end to end:
+  static musl tarballs for x86_64-linux and aarch64-linux, checksums, optional macOS
+  aarch64, and a GitHub or Forgejo release workflow. Use when asked to release binaries,
   publish a GitHub/Forgejo release, add a release workflow, produce static musl artifacts
   with checksums, enable crates.io publishing, pin nix/binary.nix to published tarballs,
-  tag a version, or wire the tag-driven binary release phase of a new project. Also
-  covers draft releases, smoke-testing the artifact that ships, and why a tag pushed
-  before main is green competes for the Nix cache key instead of restoring it.
+  tag a version, cut the first release of a new project, or wire the tag-driven binary
+  release phase of a new project. Also covers draft releases, smoke-testing the artifact
+  that ships, and why a tag pushed before main is green competes for the Nix cache key
+  instead of restoring it.
 allowed-tools: Bash, Read, Write, Edit, Grep, Glob
 ---
 
@@ -21,6 +22,11 @@ hashes, the crates.io publish) is derived from it and none of it is typed by han
 
 This is the release phase of a project: set up the tag-driven binary release once the
 workspace and its CI exist, and not before.
+
+## A scaffold is not a release
+
+Unless the user says "scaffold only", this skill is not done when the workflow exists.
+After green main CI: tag, watch the release, verify assets, run `just release-hashes`, pin `nix/binary.nix`, build `.#<name>-bin`, and push. A workflow that never ran is not a release.
 
 | artifact | runner | asset name |
 |---|---|---|
@@ -249,9 +255,8 @@ gh run watch             # or: gh run list --branch main --limit 1
 just tag v0.1.0          # refuses until the run above is green
 ```
 
-Pushing the tag is what starts the release workflow, and that workflow restores the cache
-key main's CI just wrote. Reversing the last two lines makes both jobs compile the same
-derivations without either saving them.
+Pushing the tag starts the release workflow, which restores the cache key main's CI just
+wrote. Reversing the last two lines makes both jobs compile the same derivations.
 
 After the workflow finishes:
 
@@ -278,8 +283,7 @@ release works.
 ## Not this phase
 
 - The version bump, `[workspace.package]`, and `rust-toolchain.toml` targets belong to
-  the workspace phase.
-- `tag-version` and the other hook steps belong to the hooks phase.
+  the workspace phase; `tag-version` and the other hook steps belong to the hooks phase.
 - The CI workflow, `.github/actions/*`, and the hashpinner input belong to CI setup. Call
   the composites if they exist; never rewrite them.
 - A GUI project's AppImage build is optional here and has its own module; the recipe in

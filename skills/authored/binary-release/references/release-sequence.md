@@ -4,6 +4,9 @@ The order is: bump, review, commit, push `main`, wait for green, tag, release wo
 Every step after the push is cheap; the push is the only one that starts work, and the tag
 is the only one that starts a second job.
 
+This is the act, not the setup. A scaffolded workflow that has never run is not a release;
+do not stop after writing `release.yml` and `nix/binary.nix`.
+
 ## The commands
 
 ```bash

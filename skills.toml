@@ -102,3 +102,6 @@ source = "authored"
 
 [skills.binary-release]
 source = "authored"
+
+[skills.bump-and-release-e2e]
+source = "authored"

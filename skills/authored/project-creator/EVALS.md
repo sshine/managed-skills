@@ -38,6 +38,15 @@ The user says:
   repository shell, commits once, and says the next phase sentence verbatim:
   "Scaffold the Cargo workspace and its dendritic Nix flake."
 
+## First-release gate
+
+For a project that reaches phase 5, passing requires the release to have happened, not
+just the machinery to exist. The tag must be created only after green main CI, the
+release workflow must finish, the published assets and checksums must be verified, and
+`nix/binary.nix` must be pinned to the published hashes and build. A release workflow
+that has never run is not a pass. If the user said "scaffold only", say so explicitly
+and skip this gate.
+
 ## Negative prompt
 
 > This repository already has a flake, CI and a tag-driven release. Add aarch64 macOS

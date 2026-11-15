@@ -23,6 +23,7 @@ named on the command line, use it as the project name.
 > 7. **Create the remote now**, and private or public? [yes, private]
 > 8. **Make the initial commit** now, or leave the tree dirty? [yes]
 > 9. Forgejo only: **instance URL and owner/repo**. [no remote]
+> 10. **Cut the first release now**, or scaffold the release only? [cut it now]
 
 Question 4 only exists when question 3 asks for more than one crate. Question 9 only
 exists when question 6 includes Forgejo. Do not ask a question whose answer is already
@@ -42,6 +43,7 @@ in the repository: an existing `Cargo.toml` answers 3 and 4, an existing `origin
 | Remote | nothing on disk; a `git remote` and possibly a push |
 | Initial commit | whether the shell ends with a commit or a dirty tree |
 | Forgejo URL | `git remote add origin`, release secrets later |
+| First release | phase 5 runs end to end: tag, release workflow, published assets, `nix/binary.nix` hashes |
 
 Say which of these a non-default answer changes when it is not obvious. "Both forges"
 means two CI files that must be kept identical; say that out loud.
@@ -53,6 +55,8 @@ means two CI files that must be kept identical; say that out loud.
 - Workspace lints, edition 2024, resolver 2, treefmt, conventional commits, lock-check,
   the dendritic `nix/` layout: fixed by the house style. Announce, do not ask.
 - Private remote: the safe default. Public is a one-word answer away.
+- First release: cut it end to end after green main CI unless the user says
+  "scaffold only". A release workflow that has never run is not a release.
 
 ## Follow-ups
 
