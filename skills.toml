@@ -90,3 +90,15 @@ repo = "sshine/skillmgr"
 path = "skills/manage-skills"
 branch = "main"
 rev = "874d71aa5ffe2ae938919e5984c50a567d7e46f5"
+
+[skills.project-creator]
+source = "authored"
+
+[skills.rust-workspace]
+source = "authored"
+
+[skills.nix-git-hooks]
+source = "authored"
+
+[skills.binary-release]
+source = "authored"

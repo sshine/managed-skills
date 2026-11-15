@@ -1,0 +1,165 @@
+# Default recipe: list available commands
+default:
+    @just --list
+
+# Format all code (Rust + Nix + Markdown)
+fmt:
+    treefmt
+
+# Check formatting (Rust + Nix + Markdown)
+fmt-check:
+    treefmt --fail-on-change --no-cache
+
+# Run clippy lints
+lint:
+    cargo clippy --all-targets --all-features -- -D warnings
+
+# Cargo.nix lives at the root, outside the paths named here, so the generated file
+# is not scanned. A hook that passes every staged *.nix must exclude it itself.
+#
+# Find dead Nix code
+lint-nix:
+    deadnix --fail nix/ flake.nix
+
+# Run all tests
+test:
+    cargo test --all-features
+
+# Run tests with verbose output
+test-verbose:
+    cargo test --all-features -- --nocapture
+
+# Build release
+build:
+    cargo build --release --all-features
+
+# Generate documentation
+doc *args='':
+    cargo doc --no-deps --all-features {{args}}
+
+readme_args := "--project-root crates/example --input crates/example/src/main.rs --template README.tpl"
+
+# Regenerate README.md from README.tpl and the CLI docs, then normalise it
+readme:
+    cargo readme {{readme_args}} | mdformat - > README.md
+
+# Check README.md is in sync with README.tpl and the CLI docs
+readme-check:
+    cargo readme {{readme_args}} | mdformat - | diff - README.md
+
+# Verify Cargo.lock is in step with the manifests
+lock-check:
+    cargo metadata --locked --format-version 1 > /dev/null
+
+# Regenerate Cargo.nix from Cargo.toml and Cargo.lock
+cargo-nix:
+    cargo-nix
+
+# Check Cargo.nix is in step with Cargo.toml and Cargo.lock
+cargo-nix-check:
+    cargo-nix --check
+
+# Takes an explicit semver (`just bump 0.2.0`) or a release kind (`just bump
+# minor`). The version has one home, [workspace.package]; members inherit it and
+# internal path dependencies carry a copy only when they are published.
+#
+# This does not tag. Review, commit and push main, let the main CI run go green,
+# and only then run the tag recipe. A tag pushed first starts a release job that
+# competes with CI for the same Nix cache key, so both run cold.
+#
+# Move the workspace to a new version and refresh everything derived from it
+bump version:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    manifest=Cargo.toml
+    request="{{version}}"
+
+    current="$(awk '
+      /^\[workspace\.package\]$/ { in_package = 1; next }
+      /^\[/ { in_package = 0 }
+      in_package && /^version[[:space:]]*=/ {
+        sub(/^[^=]*=[[:space:]]*"/, "")
+        sub(/".*$/, "")
+        print
+        exit
+      }
+    ' "$manifest")"
+
+    if [[ -z "$current" ]]; then
+      echo "no version line in [workspace.package] of $manifest" >&2
+      exit 1
+    fi
+
+    if [[ "$current" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
+      major="${BASH_REMATCH[1]}"
+      minor="${BASH_REMATCH[2]}"
+      patch="${BASH_REMATCH[3]}"
+    else
+      echo "current version is not semver: $current" >&2
+      exit 1
+    fi
+
+    case "$request" in
+      major) new="$((major + 1)).0.0" ;;
+      minor) new="$major.$((minor + 1)).0" ;;
+      patch) new="$major.$minor.$((patch + 1))" ;;
+      *)
+        if [[ ! "$request" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+          echo "not semver and not major/minor/patch: $request" >&2
+          exit 1
+        fi
+        new="$request"
+        ;;
+    esac
+
+    tmp="$(mktemp)"
+    trap 'rm -f "$tmp"' EXIT
+    awk -v version="$new" '
+      /^\[workspace\.package\]$/ { in_package = 1; print; next }
+      /^\[/ { in_package = 0 }
+      in_package && /^version[[:space:]]*=/ && !done {
+        sub(/=.*/, "= \"" version "\"")
+        done = 1
+      }
+      { print }
+    ' "$manifest" > "$tmp"
+
+    if ! grep -qx "version = \"$new\"" "$tmp"; then
+      echo "the version line in [workspace.package] was not rewritten" >&2
+      exit 1
+    fi
+    mv "$tmp" "$manifest"
+    trap - EXIT
+
+    # A published crate has to carry the same version beside every internal `path`
+    # dependency, or `cargo package` rejects it. Rewrite only lines that are both,
+    # which leaves member manifests and unrelated tables alone. House style keeps
+    # these inline tables on one line; a multi-line one has to be updated by hand.
+    while IFS= read -r -d '' file; do
+      sed -i -E '/path[[:space:]]*=/ s/version[[:space:]]*=[[:space:]]*"[^"]*"/version = "'"$new"'"/' "$file"
+    done < <(find . -name Cargo.toml -not -path './target/*' -print0)
+
+    cargo update --workspace
+
+    if [[ -f Cargo.nix ]]; then
+      just cargo-nix
+    fi
+
+    printf '\nBumped %s -> %s.\n\nNext:\n' "$current" "$new"
+    printf '  1. Review:     git diff\n'
+    printf '  2. Stage:      git add -A\n'
+    printf '  3. Commit:     git commit -m "chore(release): v%s"\n' "$new"
+    printf '  4. Push main:  git push origin main\n'
+    printf '  5. Wait for the main CI run to go green.\n'
+    printf '  6. Tag:        run the tag recipe with v%s\n' "$new"
+    printf '\nTag only after main is green. A tag pushed earlier starts a release job\n'
+    printf 'that competes with CI for the same Nix cache key.\n'
+
+# Run CI checks locally
+ci: fmt-check lint lint-nix test doc readme-check lock-check cargo-nix-check build
+    @echo "All CI checks passed!"
+
+# Clean build artifacts
+clean:
+    cargo clean

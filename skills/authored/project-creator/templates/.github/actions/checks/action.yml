@@ -1,0 +1,71 @@
+# The full check suite, as individually named steps.
+#
+# The single source of truth for what CI verifies: the push/PR workflow and the release
+# workflow both run this, so a tag cannot publish something that would have failed on
+# main. One step per check is what makes a red run legible at a glance.
+#
+# `just ci` is the local entry point and covers every step except the deep pin check,
+# which needs network; run `just pin-check` beside it.
+name: Run checks
+description: Run formatting, lint, test, documentation, pin and Nix build checks in the Nix dev shell.
+
+runs:
+  using: composite
+  steps:
+    - name: Check formatting
+      shell: bash
+      run: nix develop -c just fmt-check
+
+    - name: Clippy
+      shell: bash
+      run: nix develop -c just lint
+
+    - name: Dead Nix code
+      shell: bash
+      run: nix develop -c just lint-nix
+
+    - name: Test
+      shell: bash
+      run: nix develop -c just test
+
+    - name: Build
+      shell: bash
+      run: nix develop -c just build
+
+    - name: Documentation
+      shell: bash
+      run: nix develop -c just doc
+
+    - name: Check README.md is up to date
+      shell: bash
+      run: nix develop -c just readme-check
+
+    - name: Lockfile check
+      shell: bash
+      run: nix develop -c just lock-check
+
+    # Runs `hashpinner --check --deep --no-allow` through the recipe, so the flag set has
+    # one definition. --no-allow because this house pins actions/* too; --deep because a
+    # comment can name a version the commit never had. Needs network; separate from `just ci`.
+    - name: Check action pins
+      shell: bash
+      run: nix develop -c just pin-check
+
+    # Only a project that commits Cargo.nix has a recipe to check it. The IFD mode has
+    # nothing to compare, so the step says so instead of failing.
+    - name: crate2nix check
+      shell: bash
+      run: |
+        if [ -f Cargo.nix ]; then
+          nix develop -c just cargo-nix-check
+        else
+          echo "Cargo.nix is not committed; crate2nix evaluates through IFD"
+        fi
+
+    - name: Nix flake check
+      shell: bash
+      run: nix flake check
+
+    - name: Build the Nix package
+      shell: bash
+      run: nix build .#default

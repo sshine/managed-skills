@@ -1,0 +1,50 @@
+name: Release
+
+# Forgejo: .forgejo/workflows, `runs-on: nixos`, and every action by absolute URL.
+# The runner image has Nix and a warm store, so there is no install or cache step here;
+# the store is the runner's, not a cache key's.
+#
+# The release is public as soon as the upload starts, and every asset is replaced on a
+# rerun. A failed upload leaves a partial release that a retry completes; it does not
+# leave a hidden one. That is the difference from the GitHub workflow's draft.
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  verify:
+    runs-on: nixos
+    steps:
+      - uses: https://github.com/actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0, 2026-07-16
+
+      # Seconds, rather than after the test suite.
+      - name: Tag matches the manifest version
+        run: nix develop -c just check-version "${{ github.ref_name }}"
+
+      - name: CI checks
+        run: nix develop -c just ci
+
+  release:
+    needs: verify
+    runs-on: nixos
+    steps:
+      - uses: https://github.com/actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0, 2026-07-16
+
+      - name: Build static binaries
+        run: nix develop -c just dist-linux "${{ github.ref_name }}"
+
+      - name: Smoke-test the x86_64 tarball
+        run: |
+          set -euo pipefail
+          stem="example-${{ github.ref_name }}-x86_64-unknown-linux-musl"
+          tar -xzf "dist/${stem}.tar.gz" -C /tmp
+          /tmp/example --version
+
+      # nix/binary.nix and anything else that pins the assets needs the release to
+      # exist, so this is the last step and re-runnable.
+      - name: Publish release
+        env:
+          FORGEJO_URL: ${{ github.server_url }}
+          FORGEJO_REPO: ${{ github.repository }}
+          FORGEJO_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: nix run .#forgejo-release -- "${{ github.ref_name }}" dist

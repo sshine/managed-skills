@@ -1,0 +1,70 @@
+# Forgejo CI. The twin of .github/workflows/ci.yml, and it must stay that way: if the
+# two check lists drift, a green GitHub run stops meaning anything here.
+#
+# Two differences that are not cosmetic:
+#   - `runs-on: nixos` is a label on the local runner, which already has Nix. There is
+#     nothing to install and no store cache to restore on a persistent host.
+#   - Every remote action is an absolute URL. Under .forgejo/, `actions/checkout@<sha>`
+#     resolves against data.forgejo.org, a different repository with different commits.
+#
+# When both forges are configured, Forgejo reads only the first of .forgejo/workflows,
+# .gitea/workflows and .github/workflows that exists, and silently ignores the rest.
+name: Rust CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  checks:
+    runs-on: nixos
+
+    steps:
+      - name: Checkout
+        uses: https://github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1, 2026-07-17
+
+      - name: Build Nix dev shell
+        run: nix develop -c true
+
+      - name: Check formatting
+        run: nix develop -c just fmt-check
+
+      - name: Clippy
+        run: nix develop -c just lint
+
+      - name: Dead Nix code
+        run: nix develop -c just lint-nix
+
+      - name: Test
+        run: nix develop -c just test
+
+      - name: Build
+        run: nix develop -c just build
+
+      - name: Documentation
+        run: nix develop -c just doc
+
+      - name: Check README.md is up to date
+        run: nix develop -c just readme-check
+
+      - name: Lockfile check
+        run: nix develop -c just lock-check
+
+      - name: Check action pins
+        run: nix develop -c just pin-check
+
+      - name: crate2nix check
+        run: |
+          if [ -f Cargo.nix ]; then
+            nix develop -c just cargo-nix-check
+          else
+            echo "Cargo.nix is not committed; crate2nix evaluates through IFD"
+          fi
+
+      - name: Nix flake check
+        run: nix flake check
+
+      - name: Build the Nix package
+        run: nix build .#default
