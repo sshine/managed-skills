@@ -35,7 +35,8 @@ containing this file; shell commands run in the new project or its parent.
 | 7 | **Verify the whole thing.** | a report of what passed and what is left |
 
 The sentence is the routing key. Say it unchanged; paraphrase only in surrounding prose.
-If a phase does not apply, say why and skip it — do not invent a variant.
+If a phase does not apply, say why and skip it — do not invent a variant. Each phase ends
+with a commit; the next phase starts from a clean tree.
 
 ## 1. Interview
 
@@ -240,6 +241,10 @@ Outcome: a browser that is the same store path on a developer's machine and in C
 throwaway server per run, screenshots a human can open and trust, and a
 planner/generator/healer loop for writing and repairing the tests.
 
+Then inventory every route and major state, screenshot each at phone and desktop, open
+and inspect the screenshots, and fix layout defects before calling the UI done. DOM
+assertions alone are not visual acceptance.
+
 Skip it when the answer was no. Do not add a browser, a test runner or a Node toolchain
 speculatively.
 
@@ -254,6 +259,8 @@ nix flake check
 nix develop -c just ci
 nix develop -c just pin-check
 nix develop -c cargo run -- --help
+git status --short
+git rev-parse HEAD origin/main
 ```
 
 For a library with no binary, run `nix develop -c cargo test --doc` instead of `cargo run`.
@@ -271,25 +278,16 @@ Do not say the scaffold builds. Say what you ran and what a green CI run must sh
 
 ## If this is already present
 
-Check before adding; never rewrite a file because the template differs.
+Check `references/idempotence.md` before adding anything; it lists the probes and the
+additive-edit rules. Never rewrite a file because the template differs.
 
-| Artifact | Check |
-|---|---|
-| Git repository | `git rev-parse --git-dir` |
-| Ignore rules | `test -f .gitignore && grep -qx '/target/' .gitignore` |
-| Direnv shell | `test -f .envrc && grep -q 'use flake' .envrc` |
-| Licenses | `test -f LICENSE-MIT && test -f LICENSE-APACHE` |
-| Flake input | `grep -q 'hashpinner' flake.nix` |
-| Hashpinner module | `test -f nix/hashpinner.nix` |
-| Pin recipes | `grep -qE '^pin-check([ :]|$)' justfile` |
-| Composites | `test -f .github/actions/setup-nix/action.yml` |
-| Pin step | `grep -q 'pin-check' .github/actions/checks/action.yml` |
-| CI workflow | `test -f .github/workflows/ci.yml` |
+## Definition of done
 
-Missing pieces are added in place. Read the whole file first, insert one concern at a time,
-keep surrounding comments, and do not reformat or reorder what you are adding to. An
-existing `pin-check` with different flags is left alone unless it disagrees with the CI
-step, in which case say so and ask. If an edit needs a rewrite to be safe, stop and explain.
+A phase is not done until its work is committed (and pushed when there is a remote). At
+every boundary, `git status --short` is empty and `git rev-parse HEAD` equals
+`origin/main`, or the recorded commit SHA for a local-only repository. The final report
+lists the commit SHAs, the green CI run, the tag, the published assets, and the pinned
+hashes. If the tree is dirty, stop and ask; never end an iteration with uncommitted work.
 
 ## Hard rules
 

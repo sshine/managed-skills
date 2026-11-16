@@ -57,6 +57,7 @@ means two CI files that must be kept identical; say that out loud.
 - Private remote: the safe default. Public is a one-word answer away.
 - First release: cut it end to end after green main CI unless the user says
   "scaffold only". A release workflow that has never run is not a release.
+- Every phase ends with a commit and a clean tree; the next phase starts from it.
 
 ## Follow-ups
 

@@ -47,6 +47,15 @@ release workflow must finish, the published assets and checksums must be verifie
 that has never run is not a pass. If the user said "scaffold only", say so explicitly
 and skip this gate.
 
+## Commit and visual gate
+
+- Every phase ends with a commit: `git status --short` is empty and `HEAD` equals
+  `origin/main`. Fails if the agent leaves uncommitted work.
+- For a web UI, the report lists every route and major state that was screenshotted at
+  phone and desktop and opened for inspection. The landing page alone is not a pass.
+- A release is not done until the tag, the published assets and the pinned hashes exist.
+  A workflow that has never run is not a pass.
+
 ## Negative prompt
 
 > This repository already has a flake, CI and a tag-driven release. Add aarch64 macOS

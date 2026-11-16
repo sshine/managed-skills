@@ -89,7 +89,7 @@ source = "vendored"
 repo = "sshine/skillmgr"
 path = "skills/manage-skills"
 branch = "main"
-rev = "874d71aa5ffe2ae938919e5984c50a567d7e46f5"
+rev = "b0fcc3bedd99589f499599c2c670146195b8a776"
 
 [skills.project-creator]
 source = "authored"
@@ -104,4 +104,7 @@ source = "authored"
 source = "authored"
 
 [skills.bump-and-release-e2e]
+source = "authored"
+
+[skills.visual-app-acceptance]
 source = "authored"
